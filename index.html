@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KAMC Sports Golf Classic</title>
+<meta name="description" content="A tiny three-hole office golf game. Pick a golfer, beat the goose, post your initials on the leaderboard.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B3%3C/text%3E%3C/svg%3E">
+<style>
+  :root { --ink:#10261a; --panel:#17331f; --accent:#ffd23f; --good:#4be37a; --bad:#ff5a5a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; min-height:100%; background:#0b1a11; color:#f4f7ef;
+    font-family:"Trebuchet MS","Segoe UI",sans-serif; }
+  html { height:100%; }
+  body { display:flex; min-height:100%; }   /* #app centres itself with margin:auto, so tall layouts scroll instead of clipping */
+  img { image-rendering:pixelated; }
+  #app { position:relative; display:flex; gap:14px; padding:14px; width:min(1020px,100vw); margin:auto; }
+  #courseWrap { position:relative; flex:0 0 auto; width:min(600px,58vw); border:4px solid #000; border-radius:10px;
+    overflow:hidden; background:#0d2a14; box-shadow:0 8px 30px #000a; }
+  canvas { display:block; width:100%; height:auto; cursor:crosshair; }
+  #banner { position:absolute; left:0; right:0; top:34%; text-align:center; font-size:clamp(24px,8vw,46px); font-weight:900;
+    color:var(--accent); text-shadow:3px 3px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;
+    pointer-events:none; opacity:0; letter-spacing:2px; }
+  #banner.show { animation:pop 1.6s ease-out forwards; }
+  @keyframes pop { 0%{opacity:0;transform:scale(.4)} 12%{opacity:1;transform:scale(1.15)} 25%{transform:scale(1)}
+    80%{opacity:1} 100%{opacity:0;transform:translateY(-30px)} }
+
+  #panel { flex:1; min-width:300px; display:flex; flex-direction:column; gap:10px; }
+  h1 { margin:0; font-size:22px; letter-spacing:2px; color:var(--accent); text-shadow:2px 2px 0 #000; line-height:1; }
+  h1 small { display:block; font-size:13px; color:#cfe8d3; letter-spacing:4px; margin-top:3px; }
+  .box { background:var(--panel); border:3px solid #000; border-radius:10px; padding:10px; }
+  #who { display:flex; gap:10px; align-items:flex-end; min-height:150px; }
+  #portrait { height:130px; flex:0 0 auto; filter:drop-shadow(3px 3px 0 #0008); }
+  #bubble { position:relative; flex:1; background:#fff; color:#111; border-radius:12px; padding:10px 12px;
+    font-size:14px; font-weight:700; line-height:1.25; border:3px solid #000; min-height:70px; }
+  #bubble::before { content:""; position:absolute; left:-14px; bottom:18px; border:8px solid transparent;
+    border-right:12px solid #000; }
+  #bubble b { display:block; font-size:11px; color:#2a7a43; text-transform:uppercase; letter-spacing:1px; }
+  #info { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; text-align:center; }
+  #info div { background:#0e2216; border-radius:6px; padding:5px 2px; }
+  #info span { display:block; font-size:10px; color:#9fc4a8; letter-spacing:1px; }
+  #info b { font-size:20px; }
+  #holeName { grid-column:1/-1; font-size:14px; color:var(--accent); font-weight:800; }
+  #clubs { display:flex; gap:6px; }
+  .club { flex:1; padding:8px 2px; background:#0e2216; border:2px solid #345c40; color:#fff; border-radius:8px;
+    font:700 13px inherit; font-family:inherit; cursor:pointer; }
+  .club small { display:block; font-weight:400; font-size:10px; color:#9fc4a8; }
+  .club.on { background:var(--accent); color:#111; border-color:#000; }
+  .club.on small { color:#333; }
+  .meter label { font-size:10px; letter-spacing:2px; color:#9fc4a8; }
+  .bar { position:relative; height:20px; background:#0a160e; border:2px solid #000; border-radius:10px; overflow:hidden; }
+  #pFill { height:100%; width:0; background:linear-gradient(90deg,#4be37a,#ffd23f 70%,#ff5a5a); }
+  #aZone { position:absolute; top:0; bottom:0; background:#4be37a88; border-left:2px solid #4be37a; border-right:2px solid #4be37a; }
+  #aNeedle { position:absolute; top:0; bottom:0; width:4px; margin-left:-2px; background:#fff; }
+  .btns { display:flex; gap:8px; }
+  button.big { flex:1; padding:12px; font:900 18px inherit; font-family:inherit; letter-spacing:2px; cursor:pointer;
+    background:var(--accent); color:#111; border:3px solid #000; border-radius:10px; box-shadow:0 4px 0 #000; }
+  button.big:active { transform:translateY(3px); box-shadow:0 1px 0 #000; }
+  button.big:disabled { opacity:.45; cursor:not-allowed; }
+  button.small { flex:0 0 auto; background:#e8e8e8; font-size:13px; letter-spacing:0; }
+  #card { width:100%; border-collapse:collapse; font-size:13px; text-align:center; }
+  #card th { color:#9fc4a8; font-weight:600; font-size:10px; letter-spacing:1px; }
+  #card td, #card th { padding:2px 4px; }
+  #card tr.cur td { color:var(--accent); font-weight:800; }
+  .help { margin:0; font-size:11px; color:#8fb398; text-align:center; }
+
+  #overlay { position:fixed; inset:0; display:none; z-index:10;
+    background:radial-gradient(ellipse at center,#1d4d2aee,#06120aee); padding:12px; overflow:auto; }
+  #overlay.on { display:flex; }
+  .screen { text-align:center; max-width:900px; margin:auto; } /* margin:auto centres it but never clips the top on short screens */
+  .screen h2 { font-size:clamp(28px,5vw,52px); margin:0; color:var(--accent); letter-spacing:3px;
+    text-shadow:4px 4px 0 #000; line-height:1; }
+  .screen p.tag { margin:8px 0 20px; color:#cfe8d3; font-size:16px; }
+  .cards { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+  .pick { width:250px; background:var(--panel); border:4px solid #000; border-radius:14px; padding:12px; cursor:pointer;
+    color:inherit; font-family:inherit; transition:transform .12s; box-shadow:0 6px 0 #000; }
+  .pick:hover,.pick:focus-visible { transform:translateY(-6px) rotate(-1deg); border-color:var(--accent); outline:none; }
+  .pick img { height:170px; }
+  .pick h3 { margin:6px 0 0; font-size:26px; letter-spacing:2px; }
+  .pick em { color:var(--accent); font-style:normal; font-weight:800; font-size:13px; }
+  .pick p { font-size:13px; color:#cfe8d3; margin:8px 0; min-height:52px; }
+  .stat { display:flex; align-items:center; gap:6px; font-size:11px; letter-spacing:1px; color:#9fc4a8; margin:3px 0; }
+  .stat i { flex:1; height:9px; background:#0a160e; border-radius:5px; overflow:hidden; }
+  .stat i b { display:block; height:100%; background:var(--good); }
+  .stat span { width:62px; text-align:left; }
+  .result-card { background:var(--panel); border:4px solid #000; border-radius:14px; padding:22px 34px; box-shadow:0 8px 0 #000; }
+  .result-card div.big { font-size:clamp(30px,6vw,56px); font-weight:900; color:var(--accent); text-shadow:3px 3px 0 #000; }
+  .result-card img { height:150px; }
+  .result-card p { margin:6px 0 14px; font-size:16px; }
+  .row { display:flex; gap:10px; justify-content:center; margin-top:10px; }
+  .row button.big { flex:0 0 auto; padding:12px 22px; }
+
+  button { touch-action:manipulation; }
+  button:focus-visible, input:focus-visible { outline:3px solid #fff; outline-offset:2px; }
+  .menu { display:flex; gap:6px; }
+  .menu button { flex:1; padding:7px 4px; background:#0e2216; color:#cfe8d3; border:2px solid #345c40; border-radius:8px;
+    font:700 12px inherit; font-family:inherit; cursor:pointer; }
+  .menu button:hover:not(:disabled) { border-color:var(--accent); color:#fff; }
+  .menu button:disabled { opacity:.45; cursor:not-allowed; }
+  #card small { color:#9fc4a8; font-weight:400; font-size:10px; }
+
+  .dlg-title { font-size:clamp(24px,4vw,38px); font-weight:900; color:var(--accent); text-shadow:3px 3px 0 #000; }
+  .scores { margin-top:16px; display:inline-block; text-align:left; background:var(--panel); border:3px solid #000;
+    border-radius:12px; padding:10px 16px; min-width:min(430px,92vw); }
+  .scores h4 { margin:0 0 6px; text-align:center; letter-spacing:3px; font-size:13px; color:var(--accent); }
+  table.hs { width:100%; border-collapse:collapse; font-size:15px; text-align:center; font-variant-numeric:tabular-nums; }
+  table.hs th { font-size:10px; letter-spacing:1px; color:#9fc4a8; font-weight:600; padding:2px 6px; }
+  table.hs td { padding:3px 6px; }
+  table.hs td.ini { font-weight:900; letter-spacing:4px; color:#fff; }
+  table.hs tr.me td { background:#ffd23f33; color:var(--accent); }
+  table.hs .dim { color:#9fc4a8; }
+  .none { text-align:center; color:#9fc4a8; margin:6px 0; font-size:14px; }
+  .linkbtn { background:none; border:0; color:#8fb398; font:inherit; font-size:12px; text-decoration:underline; cursor:pointer; margin-top:6px; }
+  .init label { display:block; margin-bottom:8px; font-weight:800; color:var(--accent); letter-spacing:1px; }
+  .init input { width:7.2ch; font:900 44px "Trebuchet MS",monospace; text-align:center; letter-spacing:.15em; text-indent:.15em;
+    text-transform:uppercase; background:#0a160e; color:#fff; border:3px solid #000; border-radius:10px; padding:6px 4px; }
+  .init .err { min-height:18px; margin-top:6px; color:var(--bad); font-size:13px; font-weight:700; }
+  .note { color:#ffb36b; font-size:12px; margin:8px 0 0; }
+
+  @media (max-width:760px) { #app { flex-direction:column; align-items:center; } #courseWrap { width:min(600px,96vw); } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="courseWrap">
+    <canvas id="c" width="600" height="640"></canvas>
+    <div id="banner"></div>
+  </div>
+  <aside id="panel">
+    <h1>KAMC SPORTS<small>GOLF CLASSIC</small></h1>
+    <div id="who" class="box">
+      <img id="portrait" alt="">
+      <div id="bubble"></div>
+    </div>
+    <div id="info" class="box">
+      <div id="holeName"></div>
+      <div><span>PAR</span><b id="iPar">-</b></div>
+      <div><span>TO PIN</span><b id="iDist">-</b></div>
+      <div><span>STROKES</span><b id="iStr">0</b></div>
+      <div><span>WIND</span><b id="iWind">-</b></div>
+    </div>
+    <div id="clubs"></div>
+    <div class="meter">
+      <label>POWER</label>
+      <div class="bar"><div id="pFill"></div></div>
+    </div>
+    <div class="meter">
+      <label>ACCURACY &mdash; hit the green zone</label>
+      <div class="bar"><div id="aZone"></div><div id="aNeedle"></div></div>
+    </div>
+    <div class="btns">
+      <button class="big" id="swingBtn">SWING!</button>
+      <button class="big small" id="mullBtn">Mulligan</button>
+    </div>
+    <div class="box"><table id="card"></table></div>
+    <div class="menu">
+      <button id="restartBtn" disabled title="Restart this round from hole 1 (R)">&#8635; Restart</button>
+      <button id="switchBtn" disabled title="Back to golfer select">&#128101; Switch player</button>
+      <button id="muteBtn" title="Toggle sound (M)">&#128266; Sound</button>
+    </div>
+    <p class="help">&larr; &rarr; aim &middot; &uarr; &darr; club &middot; click the course to aim &middot; <b>Space</b> = swing (3 presses: start, power, accuracy) &middot; R = restart &middot; M = mute</p>
+  </aside>
+</div>
+<div id="overlay"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   EDIT ME: characters, their stats and their one-liners
+   ============================================================ */
+const CHARS = {
+  ron: {
+    name: "Ron", title: "Old Reliable", power: 0.92, zone: 0.24, luck: 0,
+    desc: "Short off the tee, steady as a rock. A very wide sweet spot.",
+    quips: {
+      start:  ["Nice day for it. Don't tell the boss.", "Alright, let's make this look easy."],
+      perfect:["That's how it's done. Write that down.", "Pure. Like my morning coffee."],
+      bad:    ["That was... a choice.", "I blame the wind. And the ball."],
+      weak:   ["I was testing the grass. Science.", "Practice swing. Totally."],
+      water:  ["It's not lost, it's an aquatic ball now.", "Splash. Nobody tell the team."],
+      tree:   ["That tree jumped out at me!", "Trees are 90% air. Allegedly."],
+      sand:   ["Beach day!", "I forgot my sunscreen."],
+      goose:  ["Excuse me, sir, that's MY ball.", "That goose has an agenda."],
+      oob:    ["Into the jungle. Classic.", "The bushes are collecting."],
+      green:  ["Now we're talking.", "On the green. Nobody panic."],
+      good:   ["Another one for the trophy case!", "Smooth. I'll be here all week."],
+      ok:     ["I'll take it. Beats a day at the desk.", "Respectable. Very respectable."],
+      poor:   ["I'm calling that a warm-up hole.", "Golf is a journey. A long one."],
+      mull:   ["Mulligan! It's in the rules. Somewhere.", "Nobody saw that. Rewind."],
+    }
+  },
+  david: {
+    name: "David", title: "Big Dog", power: 1.12, zone: 0.10, luck: 0,
+    desc: "Launches it into the next zip code. Accuracy is more of a suggestion.",
+    quips: {
+      start:  ["Somebody call the pros. I'm warmed up.", "Fore! ...ward. Into the future."],
+      perfect:["Did you SEE that? Tell everyone.", "Absolutely majestic."],
+      bad:    ["The ball is just creative.", "That was a power move. Direction optional."],
+      weak:   ["I let that one off the leash gently.", "Saving my strength."],
+      water:  ["The pond owed me money anyway.", "Fish are gonna love that."],
+      tree:   ["The tree was in my way.", "I demand a recount of that tree."],
+      sand:   ["Sandcastle time.", "This is basically a spa day."],
+      goose:  ["HONK yourself! That's MY ball!", "I'm not afraid of a goose. (I'm a little afraid.)"],
+      oob:    ["That's not out of bounds, that's EXPLORING.", "It went to find a better course."],
+      green:  ["Stuck it! Obviously.", "Right where I aimed. Probably."],
+      good:   ["Hall of Fame. Mark it down.", "Easy money. Next hole!"],
+      ok:     ["Solid. Predictable. Boring. I like it.", "That's what I call a team effort. Team: me."],
+      poor:   ["That hole was rigged.", "I'm saving my best for the next one."],
+      mull:   ["That one doesn't count. Executive decision.", "Mulligan! Big dogs get do-overs."],
+    }
+  },
+  ryan: {
+    name: "Ryan", title: "Lucky Charm", power: 1.0, zone: 0.16, luck: 0.22,
+    desc: "Perfectly average. Except the golf gods sometimes save his ball.",
+    quips: {
+      start:  ["I'm just here for the snacks.", "Let's do this. For KAMC Sports!"],
+      perfect:["Wait... did I do that on purpose?", "I'm as shocked as you are."],
+      bad:    ["I swear it looked straight in my head.", "Physics is just a theory, right?"],
+      weak:   ["That was a fairway-adjacent shot.", "Tactical underhit."],
+      water:  ["Well, it was a nice ball.", "The pond has accepted my offering."],
+      tree:   ["I'd like to speak to the tree's manager.", "Hit a tree. Ten out of ten, would hit again."],
+      sand:   ["Ah, the old beach strategy.", "Sand is just slow grass."],
+      goose:  ["The goose took my ball! Somebody get HR!", "Honk. Honk? HONK!?"],
+      oob:    ["Not lost, just creatively relocated.", "The bushes ate it. They look healthy."],
+      green:  ["On the green! Mom, are you watching?", "Look at me, hitting greens."],
+      good:   ["I peaked. Everything after this is bonus.", "Put it on my résumé."],
+      ok:     ["Honestly? I'm thrilled.", "Not bad. Not bad at all."],
+      poor:   ["That's fine. Everything is fine.", "At least the scenery is nice."],
+      lucky:  ["LUCKY BOUNCE! I've been saving those up.", "The golf gods like me today!"],
+      mull:   ["Mulligan. What I did there never happened.", "Rewind! Nobody saw that."],
+    }
+  }
+};
+const SHARED_QUIPS = {
+  lucky: ["Lucky bounce!"],
+};
+
+/* ============================================================
+   Course data (all distances in yards; x = right, y = toward the pin)
+   ============================================================ */
+const BOUND = 50; // distance from the centerline before the ball is lost in the bushes
+const HOLES = [
+  { name:"The Break Room", par:3, fw:34,
+    path:[[0,0],[0,140]], green:{x:0,y:140,r:15},
+    water:[{x:-27,y:75,rx:13,ry:22,label:"Lake Lukewarm Coffee"}],
+    sand:[{x:-20,y:132,rx:8,ry:7,label:"Stale Donut Bunker"},{x:19,y:142,rx:7,ry:10}],
+    trees:[{x:26,y:50,r:5},{x:-30,y:25,r:5}],
+    goose:{x:10,y:98} },
+  { name:"Conference Call Creek", par:4, fw:34,
+    path:[[0,0],[0,150],[62,265]], green:{x:62,y:265,r:15},
+    water:[{x:38,y:182,rx:14,ry:13,label:"Conference Call Creek"}],
+    sand:[{x:77,y:252,rx:8,ry:8,label:"Spreadsheet Sand"},{x:46,y:284,rx:9,ry:6}],
+    trees:[{x:-26,y:118,r:6},{x:-24,y:152,r:6},{x:20,y:240,r:5},{x:36,y:75,r:5}],
+    goose:{x:-6,y:172} },
+  { name:"The Never-Ending Meeting", par:5, fw:34,
+    path:[[0,0],[0,200],[-40,330],[0,460]], green:{x:0,y:460,r:16},
+    water:[{x:34,y:215,rx:14,ry:24,label:"Reply-All Reservoir"},{x:28,y:385,rx:17,ry:20}],
+    sand:[{x:-32,y:262,rx:9,ry:12,label:"Overdue Report Bunker"},{x:21,y:452,rx:7,ry:6},{x:-17,y:470,rx:7,ry:7}],
+    trees:[{x:30,y:300,r:6},{x:36,y:322,r:6},{x:-72,y:330,r:7},{x:15,y:425,r:5},{x:-30,y:140,r:5}],
+    goose:{x:-28,y:362} },
+];
+const MAX_STROKES = 8;      // pick-up rule: a hole is never scored higher than this
+const TAP_IN = 1.6;         // yards from the pin: close enough that the ball drops
+const GIMME = 3.2;          // yards from the pin: conceded tap-in, costs one extra stroke
+const MAX_SCORES = 10;      // leaderboard length
+const SCORE_KEY = "kamcGolfScores", INITIALS_KEY = "kamcGolfInitials", MUTE_KEY = "kamcGolfMuted";
+const CLUBS = [
+  { n:"Driver", max:230 },
+  { n:"Iron",   max:150 },
+  { n:"Wedge",  max:80  },
+  { n:"Putter", max:30, putter:true },
+];
+
+/* ============================================================
+   Setup
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const cv = $("c"), ctx = cv.getContext("2d");
+const W = cv.width, H_ = cv.height;
+const POSES = ["idle","aim","swing","finish","win"];
+const IMG = {};
+for (const id in CHARS) {
+  IMG[id] = {};
+  for (const p of POSES) { const im = new Image(); im.src = `assets/sprites/${id}_${p}.png`; IMG[id][p] = im; }
+}
+const rnd = (a,b) => a + Math.random()*(b-a);
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+const hyp = Math.hypot;
+
+const G = {
+  state:"select", char:null, holeIdx:0, strokes:0, scores:[], ball:{x:0,y:0}, golfer:{x:0,y:0},
+  club:0, aim:0, power:0, acc:0, curPower:0, curAcc:0, pT:0, aT:0, mulls:2, history:[], flight:null,
+  pose:"idle", wind:{mph:0,ang:0}, goose:{x:0,y:0}, particles:[], t:0, wait:0, swingT:0, view:null,
+  paused:false, summaryT:0, pending:null, final:null,
+};
+
+const H = () => HOLES[G.holeIdx];
+const sum = a => a.reduce((x,y) => x+y, 0);
+const TOTAL_PAR = sum(HOLES.map(h => h.par));
+const fmtPar = d => d === 0 ? "E" : d > 0 ? "+"+d : String(d);
+
+/* ---------- storage (localStorage can be blocked or full, so every access is guarded) ---------- */
+const store = {
+  get(k, fallback) { try { const v = localStorage.getItem(k); return v == null ? fallback : JSON.parse(v); } catch(e) { return fallback; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e) { return false; } },
+  del(k) { try { localStorage.removeItem(k); return true; } catch(e) { return false; } },
+};
+
+/* ---------- high scores: top 10 rounds, lowest strokes wins, ties go to whoever posted first ---------- */
+const byScore = (a,b) => a.strokes - b.strokes || a.date - b.date;
+function loadScores() {
+  const raw = store.get(SCORE_KEY, []);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(s => s && typeof s.initials === "string" && /^[A-Z]{3}$/.test(s.initials) &&
+                 Number.isInteger(s.strokes) && s.strokes > 0 && Number.isFinite(s.date))
+    .sort(byScore).slice(0, MAX_SCORES);
+}
+function qualifies(strokes) {
+  const list = loadScores();
+  return list.length < MAX_SCORES || strokes < list[list.length-1].strokes;
+}
+function saveScore(initials, strokes, golfer) {
+  const list = loadScores(), entry = { initials, strokes, par:TOTAL_PAR, golfer, date:Date.now() };
+  list.push(entry); list.sort(byScore);
+  const kept = list.slice(0, MAX_SCORES);
+  return { ok: store.set(SCORE_KEY, kept), date: entry.date, rank: kept.indexOf(entry) + 1 };
+}
+function scoreTable(limit, highlightDate) {
+  const list = loadScores().slice(0, limit);
+  if (!list.length) return `<p class="none">No scores yet &mdash; be the first on the board!</p>`;
+  // every field is validated or looked up before it reaches innerHTML
+  return `<table class="hs"><tr><th>#</th><th>NAME</th><th>GOLFER</th><th>STROKES</th><th>TO PAR</th></tr>${list.map((s,i) =>
+    `<tr class="${s.date === highlightDate ? "me" : ""}"><td class="dim">${i+1}</td><td class="ini">${s.initials}</td>
+      <td>${CHARS[s.golfer] ? CHARS[s.golfer].name : "?"}</td><td>${s.strokes}</td>
+      <td>${fmtPar(s.strokes - (Number.isInteger(s.par) ? s.par : TOTAL_PAR))}</td></tr>`).join("")}</table>`;
+}
+
+/* ---------- sound ---------- */
+let AC = null, muted = store.get(MUTE_KEY, false) === true;
+function tone(f, d, type="square", v=.08, slide=0, delay=0) {
+  if (muted) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t0);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f+slide), t0+d);
+    g.gain.setValueAtTime(v, t0); g.gain.exponentialRampToValueAtTime(.001, t0+d);
+    o.connect(g); g.connect(AC.destination); o.start(t0); o.stop(t0+d);
+  } catch(e) {}
+}
+const sfx = {
+  click: () => tone(660, .06),
+  hit:   () => { tone(180, .12, "square", .15, -120); tone(900, .05, "triangle", .1); },
+  splash:() => tone(500, .35, "sawtooth", .06, -420),
+  thud:  () => tone(120, .15, "square", .12, -60),
+  honk:  () => { tone(330, .18, "sawtooth", .1, -60); tone(300, .2, "sawtooth", .1, -60, .2); },
+  cheer: () => [523,659,784,1047].forEach((f,i) => tone(f, .18, "triangle", .12, 0, i*.1)),
+  sad:   () => [330,262,196].forEach((f,i) => tone(f, .25, "triangle", .1, 0, i*.18)),
+  plop:  () => tone(300, .15, "sine", .15, -200),
+};
+
+/* ---------- geometry ---------- */
+function distSeg(px,py,ax,ay,bx,by) {
+  const dx = bx-ax, dy = by-ay, l2 = dx*dx+dy*dy;
+  const t = l2 ? clamp(((px-ax)*dx+(py-ay)*dy)/l2, 0, 1) : 0;
+  return hyp(px-(ax+t*dx), py-(ay+t*dy));
+}
+function distPath(x,y,path) {
+  let d = Infinity;
+  for (let i = 0; i < path.length-1; i++) d = Math.min(d, distSeg(x,y,path[i][0],path[i][1],path[i+1][0],path[i+1][1]));
+  return d;
+}
+const inEll = (x,y,e) => ((x-e.x)/e.rx)**2 + ((y-e.y)/e.ry)**2 < 1;
+
+function terrain(x,y) {
+  const h = H(), dp = distPath(x,y,h.path);
+  if (dp > BOUND) return "oob";
+  for (const w of h.water) if (inEll(x,y,w)) return "water";
+  for (const t of h.trees) if (hyp(x-t.x,y-t.y) < t.r) return "tree";
+  for (const s of h.sand) if (inEll(x,y,s)) return "sand";
+  if (hyp(x-h.green.x, y-h.green.y) < h.green.r) return "green";
+  return dp < h.fw/2 ? "fairway" : "rough";
+}
+
+function setView() {
+  const h = H(); let minX = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of h.path) { minX = Math.min(minX,p[0]); maxX = Math.max(maxX,p[0]); maxY = Math.max(maxY,p[1]); }
+  minX -= BOUND*.7; maxX += BOUND*.7; const minY = -28; maxY += 34;
+  const S = Math.min(W/(maxX-minX), H_/(maxY-minY));
+  G.view = { S, cx:(minX+maxX)/2, cy:(minY+maxY)/2 };
+}
+const w2s = (x,y) => ({ x: W/2 + (x-G.view.cx)*G.view.S, y: H_/2 - (y-G.view.cy)*G.view.S });
+const s2w = (x,y) => ({ x: (x-W/2)/G.view.S + G.view.cx, y: -(y-H_/2)/G.view.S + G.view.cy });
+
+/* ---------- messaging ---------- */
+function say(key, fallbackKey) {
+  const c = CHARS[G.char];
+  const list = c.quips[key] || SHARED_QUIPS[key] || c.quips[fallbackKey] || ["..."];
+  $("bubble").innerHTML = `<b>${c.name}</b>${pick(list)}`;
+}
+let bannerTimer = 0;
+function banner(text, color) {
+  const b = $("banner"); b.textContent = text; b.style.color = color || "";
+  b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
+}
+
+/* ---------- particles ---------- */
+function burst(sx, sy, n, colors, speed=140, grav=300, life=.8) {
+  for (let i = 0; i < n; i++) {
+    const a = rnd(0, Math.PI*2), v = rnd(.3,1)*speed;
+    G.particles.push({ x:sx, y:sy, vx:Math.cos(a)*v, vy:Math.sin(a)*v - speed*.5, g:grav, life:rnd(.5,1)*life, max:life,
+      c:pick(colors), s:rnd(2,5) });
+  }
+}
+function confetti(n=140) {
+  const cols = ["#ffd23f","#ff5a5a","#4be37a","#5ac8ff","#ff8cf0","#fff"];
+  for (let i = 0; i < n; i++)
+    G.particles.push({ x:rnd(0,W), y:rnd(-200,-10), vx:rnd(-40,40), vy:rnd(60,200), g:20, life:rnd(1.8,3), max:3, c:pick(cols), s:rnd(4,8) });
+}
+
+/* ============================================================
+   Game flow
+   ============================================================ */
+function startRound(id) {
+  // a full reset, so restarting or switching golfer mid-shot can never leave stale state behind
+  G.char = id; G.holeIdx = 0; G.scores = []; G.mulls = 2;
+  G.flight = null; G.pending = null; G.final = null; G.paused = false; G.summaryT = 0; G.particles = [];
+  dialog = null;
+  $("overlay").classList.remove("on");
+  startHole();
+}
+// true once there is something to lose: a finished hole, a stroke taken, or a shot already on its way
+const roundInProgress = () => !!G.char && ["aim","power","accuracy","swing","flight","result","holeDone","summary"].includes(G.state) &&
+  (G.holeIdx > 0 || G.scores.length > 0 || G.strokes > 0 || ["swing","flight","result","holeDone","summary"].includes(G.state));
+function startHole() {
+  const h = H();
+  setView();
+  G.strokes = 0; G.history = []; G.ball = { x:0, y:0 }; G.golfer = { x:0, y:0 };
+  G.goose = { x:h.goose.x, y:h.goose.y };
+  G.wind = { mph: Math.round(rnd(0,12)), ang: rnd(0, Math.PI*2) };
+  G.particles = []; G.state = "aim";
+  prepAim();
+  banner(`HOLE ${G.holeIdx+1} · PAR ${h.par}`);
+  say("start");
+  updateHUD();
+}
+function aimTarget() {
+  // On a dogleg, aim at the next bend still ahead of the ball. Find the path segment the ball is on and only
+  // consider the bends after it, so the aim never swings back toward a bend the ball has already passed.
+  const h = H(), b = G.ball, last = h.path.length-1;
+  if (terrain(b.x,b.y) !== "green") {
+    let seg = 0, best = Infinity;
+    for (let i = 0; i < last; i++) {
+      const d = distSeg(b.x,b.y, h.path[i][0],h.path[i][1], h.path[i+1][0],h.path[i+1][1]);
+      if (d < best) { best = d; seg = i; }
+    }
+    for (let i = seg+1; i < last; i++) {
+      const p = h.path[i];
+      if (hyp(p[0]-b.x, p[1]-b.y) > 35) return { x:p[0], y:p[1] };
+    }
+  }
+  return { x:h.green.x, y:h.green.y };
+}
+function prepAim() {
+  const b = G.ball, t = aimTarget(), d = hyp(t.x-b.x, t.y-b.y);
+  G.aim = Math.atan2(t.x-b.x, t.y-b.y);
+  const onGreen = terrain(b.x,b.y) === "green";
+  G.club = onGreen ? 3 : d >= 190 ? 0 : d >= 100 ? 1 : 2;
+  if (!onGreen && G.club === 2 && d > 100) G.club = 1;
+  G.pose = "idle";
+  updateHUD();
+}
+
+function updateHUD() {
+  if (!G.char) return;
+  const h = H(), b = G.ball;
+  $("holeName").textContent = `Hole ${G.holeIdx+1} of ${HOLES.length}: ${h.name}`;
+  $("iPar").textContent = h.par;
+  $("iDist").textContent = Math.round(hyp(h.green.x-b.x, h.green.y-b.y)) + "y";
+  $("iStr").textContent = G.strokes;
+  const wdir = ["↑","↗","→","↘","↓","↙","←","↖"][Math.round(((G.wind.ang % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI) / (Math.PI/4)) % 8];
+  $("iWind").textContent = G.wind.mph ? `${wdir} ${G.wind.mph}` : "calm";
+  const ch = CHARS[G.char];
+  $("clubs").innerHTML = CLUBS.map((c,i) =>
+    `<button class="club ${i===G.club?"on":""}" data-c="${i}">${c.n}<small>${Math.round(c.max*(c.putter?1:ch.power))}y</small></button>`).join("");
+  $("mullBtn").textContent = `Mulligan (${G.mulls})`;
+  $("mullBtn").disabled = !(G.state === "aim" && G.history.length && G.mulls > 0);
+  $("swingBtn").disabled = !["aim","power","accuracy"].includes(G.state);
+  $("swingBtn").textContent = G.state === "power" ? "LOCK POWER!" : G.state === "accuracy" ? "HIT IT!" : "SWING!";
+  let rows = `<tr><th></th>${HOLES.map((_,i)=>`<th>${i+1}</th>`).join("")}<th>TOT</th></tr>`;
+  rows += `<tr><td>Par</td>${HOLES.map(x=>`<td>${x.par}</td>`).join("")}<td>${TOTAL_PAR}</td></tr>`;
+  const done = G.scores.length, tot = sum(G.scores), parSoFar = sum(HOLES.slice(0, done).map(x => x.par));
+  rows += `<tr><td>${ch.name}</td>${HOLES.map((_,i)=>`<td class="${i===G.holeIdx?"cur":""}">${G.scores[i] ?? (i===G.holeIdx ? G.strokes : "-")}</td>`).join("")}` +
+    `<td>${tot}${done ? ` <small>(${fmtPar(tot - parSoFar)})</small>` : ""}</td></tr>`;
+  $("card").innerHTML = rows;
+  const inRound = G.state !== "select";
+  $("restartBtn").disabled = $("switchBtn").disabled = !inRound;
+  refreshMute();
+}
+function refreshMute() { $("muteBtn").innerHTML = muted ? "&#128263; Muted" : "&#128266; Sound"; }
+function toggleMute() {
+  muted = !muted; store.set(MUTE_KEY, muted); refreshMute();
+  if (!muted) sfx.click(); // audible confirmation that sound is back
+}
+
+function setPose(p) {
+  G.pose = p;
+  if (!G.char) return;
+  const src = IMG[G.char][p].src;
+  if ($("portrait").src !== src) $("portrait").src = src;
+}
+
+/* ---------- swing ---------- */
+function action() {
+  if (G.state === "aim") { G.state = "power"; G.pT = 0; sfx.click(); }
+  else if (G.state === "power") { G.power = Math.max(.06, G.curPower); G.state = "accuracy"; G.aT = rnd(0,6); sfx.click(); }
+  else if (G.state === "accuracy") { G.acc = G.curAcc; swingNow(); }
+  updateHUD();
+}
+function swingNow() {
+  G.state = "swing"; G.swingT = .3; setPose("swing"); sfx.hit();
+}
+function launch() {
+  const c = CLUBS[G.club], ch = CHARS[G.char], b = G.ball, lie = terrain(b.x,b.y);
+  G.history.push({ x:b.x, y:b.y, strokes:G.strokes });
+  G.strokes++;
+  const lieF = c.putter ? (lie === "sand" ? .5 : 1) : ({ sand:.6, rough:.82 }[lie] || 1);
+  const a = G.acc, off = Math.max(0, Math.abs(a)-ch.zone) / (1-ch.zone); // 0 inside the sweet zone
+  const dev = Math.sign(a) * off * (c.putter ? .07 : .3);
+  const dist = c.max * (c.putter ? 1 : ch.power) * G.power * lieF * (1 - .3*off);
+  const ang = G.aim + dev;
+  let ex = b.x + Math.sin(ang)*dist, ey = b.y + Math.cos(ang)*dist;
+  if (!c.putter) {
+    ex += Math.sin(G.wind.ang) * G.wind.mph * dist * .0035;
+    ey += Math.cos(G.wind.ang) * G.wind.mph * dist * .0035;
+  } else {
+    ({ x:ex, y:ey } = rollEnd(b.x, b.y, ex, ey, lie)); // a rolling ball can't cross water, trees or bunkers
+  }
+  const S = G.view.S, run = c.putter ? hyp(ex-b.x, ey-b.y) : dist;
+  G.flight = { sx:b.x, sy:b.y, ex, ey, t:0, dur: c.putter ? .35 + run/45 : .75 + dist/320,
+    apex: c.putter ? 0 : clamp(dist*S*.35, 18, 150), putter:!!c.putter, off, sgn:Math.sign(a), power:G.power, dist };
+  G.state = "flight"; setPose("finish");
+  updateHUD();
+}
+// A putt stays on the ground, so walk along its line and stop it at the first hazard it meets. A ball that starts
+// in a bunker is allowed to roll out of it; only a bunker entered after leaving counts.
+function rollEnd(sx, sy, ex, ey, startLie) {
+  const n = Math.max(1, Math.ceil(hyp(ex-sx, ey-sy) / .5));
+  let clear = startLie !== "sand";
+  for (let i = 1; i <= n; i++) {
+    const x = sx + (ex-sx)*i/n, y = sy + (ey-sy)*i/n, ter = terrain(x,y);
+    if (ter === "sand") { if (clear) return { x, y }; }
+    else { clear = true; if (ter === "water" || ter === "tree" || ter === "oob") return { x, y }; }
+  }
+  return { x:ex, y:ey };
+}
+function stepBack(land, from) { // walk from the landing spot back toward where the shot began until the lie is playable
+  for (let t = 1; t >= 0; t -= .02) {
+    const x = from.x + (land.x-from.x)*t, y = from.y + (land.y-from.y)*t, ter = terrain(x,y);
+    if (ter !== "water" && ter !== "tree" && ter !== "oob") return { x, y };
+  }
+  return { x:from.x, y:from.y };
+}
+function updateFlight(dt) {
+  const f = G.flight; f.t += dt / f.dur;
+  if (f.t >= 1) { f.t = 1; resolveShot(); }
+}
+function resolveShot() {
+  const f = G.flight, h = H(), ch = CHARS[G.char], start = { x:f.sx, y:f.sy };
+  let land = { x:f.ex, y:f.ey }, ter = terrain(land.x, land.y), key = null, bannerText = null, bannerCol = null;
+
+  if (!f.putter && ter !== "water" && ter !== "oob" && hyp(land.x-G.goose.x, land.y-G.goose.y) < 8) {
+    const a = rnd(0, Math.PI*2), d = rnd(16,28), n = { x:land.x+Math.cos(a)*d, y:land.y+Math.sin(a)*d };
+    if (!["water","oob","tree"].includes(terrain(n.x,n.y))) land = n;
+    const ng = { x:G.goose.x + rnd(-20,20), y:G.goose.y + rnd(-10,30) };
+    if (!["water","oob","tree"].includes(terrain(ng.x,ng.y))) G.goose = ng; // the goose waddles, it doesn't swim or go out of bounds
+    ter = terrain(land.x, land.y); key = "goose"; bannerText = "HONK! GOOSE STOLE IT"; bannerCol = "#fff"; sfx.honk();
+  }
+  if ((ter === "water" || ter === "tree") && Math.random() < ch.luck) {
+    burst(w2s(land.x,land.y).x, w2s(land.x,land.y).y, 30, ["#ffd23f","#fff"], 160);
+    land = stepBack(land, start); ter = terrain(land.x, land.y); key = "lucky"; bannerText = "LUCKY BOUNCE!"; bannerCol = "#4be37a"; sfx.cheer();
+  }
+
+  const sp = w2s(land.x, land.y);
+  if (ter === "oob") {
+    G.strokes++; G.ball = start; key = "oob"; bannerText = "LOST IN THE BUSHES +1"; bannerCol = "#ff5a5a"; sfx.thud();
+  } else if (ter === "water") {
+    G.strokes++; G.ball = start; key = "water"; bannerText = "SPLASH! +1"; bannerCol = "#5ac8ff";
+    burst(sp.x, sp.y, 40, ["#bfe6ff","#5ac8ff","#fff"], 150); sfx.splash();
+  } else if (ter === "tree") {
+    const t = h.trees.find(t => hyp(land.x-t.x, land.y-t.y) < t.r), d = hyp(start.x-t.x, start.y-t.y) || 1;
+    let rest = { x:t.x + (start.x-t.x)/d*(t.r+1.5), y:t.y + (start.y-t.y)/d*(t.r+1.5) };
+    if (["water","tree","oob"].includes(terrain(rest.x, rest.y))) rest = stepBack(rest, start); // never drop the ball into a hazard
+    G.ball = rest;
+    key = "tree"; bannerText = "BONK! TREE"; bannerCol = "#c58b4e"; sfx.thud();
+    burst(sp.x, sp.y, 18, ["#2e7d32","#66bb6a"], 120);
+  } else {
+    G.ball = land;
+    if (!key) {
+      if (ter === "sand") { key = "sand"; bannerText = "BUNKER"; bannerCol = "#f0d890"; burst(sp.x, sp.y, 22, ["#e8d49a","#d9bd78"], 110); sfx.thud(); }
+      else if (!f.putter && f.off > .55) { key = "bad"; bannerText = f.sgn > 0 ? "SLICE!" : "HOOK!"; bannerCol = "#ff9a3c"; sfx.thud(); }
+      else if (!f.putter && f.power < .35) { key = "weak"; bannerText = "WEAK!"; bannerCol = "#ff9a3c"; sfx.thud(); }
+      else if (f.off === 0 && f.power > .8 && !f.putter) { key = "perfect"; bannerText = "PERFECT!"; bannerCol = "#ffd23f"; sfx.cheer(); }
+      else if (ter === "green") { key = "green"; bannerText = f.putter ? "" : "ON THE GREEN"; bannerCol = "#4be37a"; sfx.plop(); }
+      else sfx.thud();
+    }
+  }
+  if (bannerText) banner(bannerText, bannerCol);
+  G.flight = null;
+
+  const pin = { x:h.green.x, y:h.green.y }, dpin = hyp(G.ball.x-pin.x, G.ball.y-pin.y);
+  if (terrain(G.ball.x,G.ball.y) === "green" && ter === "green" && dpin < GIMME) {
+    if (dpin >= TAP_IN) {
+      if (G.strokes >= MAX_STROKES) return finishHole(true); // no stroke left to hole the tap-in: pick up
+      G.strokes++; banner("GIMME!", "#fff");                  // the conceded tap-in counts as a stroke
+    }
+    G.ball = pin; return finishHole();
+  }
+  if (G.strokes >= MAX_STROKES) return finishHole(true);
+  if (key) say(key);
+  G.state = "result"; G.wait = 1.1; setPose("idle");
+  updateHUD();
+}
+
+function scoreName(s, par) {
+  if (s === 1) return "HOLE IN ONE!!!";
+  const d = s - par;
+  return d <= -3 ? "ALBATROSS!!" : d === -2 ? "EAGLE!" : d === -1 ? "BIRDIE!" : d === 0 ? "PAR" : d === 1 ? "BOGEY" : d === 2 ? "DOUBLE BOGEY" : "MERCY RULE";
+}
+function finishHole(pickedUp) {
+  G.strokes = Math.min(G.strokes, MAX_STROKES); // a penalty on the last allowed stroke still scores the maximum, not more
+  const h = H(), s = G.strokes, d = s - h.par, name = pickedUp ? "PICK IT UP!" : scoreName(s, h.par);
+  G.scores[G.holeIdx] = s; G.state = "holeDone";
+  const good = !pickedUp && d <= 0;
+  setPose(good ? "win" : "idle");
+  banner(name, good ? "#ffd23f" : "#ff9a3c");
+  if (good) { confetti(d <= -1 ? 220 : 90); sfx.cheer(); } else sfx.sad();
+  say(d <= -1 && !pickedUp ? "good" : d <= 0 || d === 1 && !pickedUp ? "ok" : "poor");
+  updateHUD();
+  // shown by update() after a short celebration. It runs on game time rather than a timer, so pausing for a
+  // restart prompt holds it, and restarting can never be followed by a stale hole summary.
+  G.pending = { name, s, d, good, pickedUp }; G.summaryT = 2.1;
+}
+
+/* ---------- screens ---------- */
+function showOverlay(html) { const o = $("overlay"); o.innerHTML = html; o.classList.add("on"); }
+
+let dialog = null; // the open confirm dialog, if any
+function openDialog(title, text, okLabel, onOk, cancelLabel = "Keep playing", onCancel = null) {
+  dialog = { onOk, onCancel }; G.paused = true; // freeze the game while the player decides
+  showOverlay(`<div class="screen"><div class="result-card">
+    <div class="dlg-title">${title}</div><p>${text}</p>
+    <div class="row"><button class="big" id="dlgOk">${okLabel}</button><button class="big small" id="dlgCancel">${cancelLabel}</button></div>
+  </div></div>`);
+  $("dlgCancel").focus(); // the safe choice is the default
+}
+function closeDialog(confirmed) {
+  const d = dialog; dialog = null; G.paused = false; $("overlay").classList.remove("on");
+  if (d) { const f = confirmed ? d.onOk : d.onCancel; if (f) f(); }
+}
+function askRestart() {
+  if (!G.char || G.state === "select" || dialog) return;
+  const go = () => startRound(G.char);
+  if (roundInProgress()) openDialog("RESTART ROUND?", `${CHARS[G.char].name} goes back to hole 1. This round's score and mulligans are reset.`, "RESTART", go);
+  else go();
+}
+function askSwitch() {
+  if (!G.char || G.state === "select" || dialog) return;
+  if (roundInProgress()) openDialog("SWITCH PLAYER?", "This round will be abandoned and nothing is saved to the leaderboard.", "SWITCH", selectScreen);
+  else selectScreen();
+}
+
+function selectScreen() {
+  G.state = "select"; G.flight = null; G.pending = null; G.paused = false; dialog = null;
+  updateHUD();
+  const bar = (label, v) => `<div class="stat"><span>${label}</span><i><b style="width:${v*100}%"></b></i></div>`;
+  showOverlay(`<div class="screen">
+    <h2>KAMC SPORTS<br>GOLF CLASSIC</h2>
+    <p class="tag">No tee time. No green fees. Absolutely no goose-related liability.<br><b>Pick your golfer:</b></p>
+    <div class="cards">${Object.keys(CHARS).map(id => { const c = CHARS[id]; return `
+      <button class="pick" data-id="${id}">
+        <img src="assets/sprites/${id}_idle.png" alt="${c.name}">
+        <h3>${c.name.toUpperCase()}</h3><em>${c.title}</em>
+        <p>${c.desc}</p>
+        ${bar("POWER", (c.power-.7)/.5)}${bar("ACCURACY", .35 + c.zone*2.6)}${bar("LUCK", c.luck ? .7 : .1)}
+      </button>`; }).join("")}
+    </div>
+    <div class="scores"><h4>&#127942; HIGH SCORES</h4>${scoreTable(5)}</div>
+    ${loadScores().length ? `<div><button class="linkbtn" id="clearScoresBtn">Clear high scores</button></div>` : ""}
+  </div>`);
+}
+function holeSummary(name, s, d, good, pickedUp) {
+  const last = G.holeIdx === HOLES.length-1, ch = CHARS[G.char];
+  const diffTxt = d === 0 ? "Even par" : d > 0 ? `${d} over par` : `${-d} under par`;
+  showOverlay(`<div class="screen"><div class="result-card">
+    <img src="assets/sprites/${G.char}_${good ? "win" : "idle"}.png" alt="">
+    <div class="big">${name}</div>
+    <p>${ch.name} took <b>${s}</b> strokes on a par ${H().par} (${diffTxt}).${pickedUp ? " Maximum score reached, so the ball is picked up. Lunch break is calling." : ""}</p>
+    <p class="tag" style="margin:0 0 14px">Round so far: <b>${sum(G.scores)}</b> through ${G.scores.length} of ${HOLES.length} (${fmtPar(sum(G.scores) - sum(HOLES.slice(0, G.scores.length).map(x => x.par)))})</p>
+    <div class="row"><button class="big" id="nextBtn">${last ? "SEE FINAL SCORE" : "NEXT HOLE ▶"}</button></div>
+  </div></div>`);
+  $("nextBtn").focus();
+}
+function finalScreen() {
+  const total = sum(G.scores), d = total - TOTAL_PAR;
+  const title = d <= -3 ? "Tour Pro. Call the PGA." : d <= -1 ? "KAMC Club Champion" : d === 0 ? "Solid Weekend Golfer" :
+    d <= 3 ? "Respectable Mulligan Enthusiast" : d <= 6 ? "Best Friends With The Water Hazard" : "Honorary Goose Snack";
+  const good = d <= 1;
+  G.state = "final";
+  G.final = { total, title, good, golfer:G.char, scores:G.scores.slice(), needsInitials:qualifies(total), saved:null };
+  if (good) { confetti(260); sfx.cheer(); } else sfx.sad();
+  renderFinal();
+}
+function renderFinal() {
+  const f = G.final, ch = CHARS[f.golfer], d = f.total - TOTAL_PAR, sv = f.saved;
+  const remembered = store.get(INITIALS_KEY, ""), pre = typeof remembered === "string" && /^[A-Z]{3}$/.test(remembered) ? remembered : "";
+  let middle;
+  if (f.needsInitials) {
+    middle = `<form class="init" id="initForm" autocomplete="off">
+      <label for="initials">&#127942; NEW HIGH SCORE! Enter your 3 initials</label>
+      <input id="initials" name="initials" maxlength="3" value="${pre}" inputmode="text" autocapitalize="characters" spellcheck="false" aria-describedby="initErr">
+      <div class="err" id="initErr" role="alert"></div>
+      <div class="row"><button class="big" type="submit">SAVE SCORE</button><button class="big small" type="button" id="skipBtn">Skip</button></div>
+    </form>`;
+  } else {
+    middle = `${sv ? (sv.rank ? `<p><b>You are #${sv.rank} on the leaderboard!</b></p>` : `<p>Saved, but it didn't crack the top ${MAX_SCORES} this time.</p>`) : ""}
+      ${sv && !sv.ok ? `<p class="note">Your browser blocked storage, so this score won't be remembered after you leave.</p>` : ""}
+      <div class="row"><button class="big" id="againBtn">PLAY AGAIN</button><button class="big small" id="changeBtn">Switch player</button></div>`;
+  }
+  showOverlay(`<div class="screen"><div class="result-card">
+    <img src="assets/sprites/${f.golfer}_${f.good ? "win" : "idle"}.png" alt="">
+    <div class="big">${f.title}</div>
+    <p>${ch.name} finished with <b>${f.total}</b> strokes (par ${TOTAL_PAR}, ${d === 0 ? "even" : fmtPar(d)}).</p>
+    <p>${HOLES.map((h,i)=>`Hole ${i+1}: ${f.scores[i]}`).join(" &middot; ")}</p>
+    ${middle}
+  </div>${f.needsInitials ? "" : `<div class="scores"><h4>&#127942; HIGH SCORES</h4>${scoreTable(MAX_SCORES, sv && sv.date)}</div>`}</div>`);
+  const focus = $("initials") || $("againBtn");
+  if (focus) { focus.focus(); if (focus.select) focus.select(); }
+}
+function submitInitials() {
+  const f = G.final; if (!f || !f.needsInitials || f.saved) return; // guards against a double submit
+  const v = $("initials").value.toUpperCase().replace(/[^A-Z]/g, "");
+  if (v.length !== 3) { $("initErr").textContent = "Please enter exactly 3 letters (A-Z)."; $("initials").focus(); return; }
+  f.saved = saveScore(v, f.total, f.golfer); f.needsInitials = false;
+  store.set(INITIALS_KEY, v); // remembered so the next round is pre-filled
+  renderFinal();
+}
+
+/* ============================================================
+   Input
+   ============================================================ */
+const keys = {};
+const overlayOn = () => $("overlay").classList.contains("on");
+const typingIn = e => e.target && e.target.matches && e.target.matches("input, textarea");
+addEventListener("keydown", e => {
+  if (typingIn(e)) return; // the initials box needs normal typing (and Enter submits its form)
+  if (overlayOn()) {
+    // overlay buttons handle Enter/Space natively; add a few shortcuts on top
+    if (e.code === "Escape" && dialog) closeDialog(false);
+    else if (!e.repeat && G.state === "select" && !dialog && /^Digit[1-9]$/.test(e.code)) {
+      const id = Object.keys(CHARS)[+e.code.slice(5) - 1]; if (id) startRound(id);
+    }
+    return;
+  }
+  if (e.code === "Space" || e.code.startsWith("Arrow")) e.preventDefault();
+  keys[e.code] = true;
+  if (e.repeat) return;
+  if (e.code === "Space") action();
+  if (e.code === "KeyM") toggleMute();
+  if (e.code === "KeyR") askRestart();
+  if (G.state === "aim" && !G.paused && (e.code === "ArrowUp" || e.code === "ArrowDown")) {
+    G.club = clamp(G.club + (e.code === "ArrowUp" ? -1 : 1), 0, CLUBS.length-1); updateHUD();
+  }
+});
+addEventListener("keyup", e => {
+  keys[e.code] = false;
+  // Space also "clicks" whichever button last had focus; stop that so one press can't swing twice
+  if (e.code === "Space" && !typingIn(e) && !overlayOn()) e.preventDefault();
+});
+addEventListener("blur", () => { for (const k in keys) keys[k] = false; }); // no stuck aim keys after alt-tab
+$("swingBtn").onclick = e => { action(); e.currentTarget.blur(); };
+$("mullBtn").onclick = e => {
+  e.currentTarget.blur();
+  if (G.state !== "aim" || G.paused || !G.history.length || G.mulls <= 0) return;
+  const s = G.history.pop(); G.ball = { x:s.x, y:s.y }; G.strokes = s.strokes; G.mulls--;
+  prepAim(); say("mull"); banner("MULLIGAN!", "#fff");
+};
+$("restartBtn").onclick = e => { e.currentTarget.blur(); askRestart(); };
+$("switchBtn").onclick = e => { e.currentTarget.blur(); askSwitch(); };
+$("muteBtn").onclick = e => { e.currentTarget.blur(); toggleMute(); };
+$("clubs").onclick = e => {
+  const b = e.target.closest(".club"); if (!b || G.state !== "aim" || G.paused) return;
+  G.club = +b.dataset.c; updateHUD();
+};
+cv.addEventListener("click", e => {
+  if (G.state !== "aim") return;
+  const r = cv.getBoundingClientRect(), p = s2w((e.clientX-r.left)*W/r.width, (e.clientY-r.top)*H_/r.height);
+  G.aim = Math.atan2(p.x-G.ball.x, p.y-G.ball.y);
+});
+$("overlay").addEventListener("click", e => {
+  const id = e.target.id, pk = e.target.closest(".pick");
+  if (pk) return startRound(pk.dataset.id);
+  if (id === "dlgOk") return closeDialog(true);
+  if (id === "dlgCancel") return closeDialog(false);
+  if (id === "nextBtn" && G.state === "summary") {
+    $("overlay").classList.remove("on");
+    if (G.holeIdx === HOLES.length-1) finalScreen(); else { G.holeIdx++; startHole(); }
+  }
+  if (id === "againBtn") startRound(G.final ? G.final.golfer : G.char);
+  if (id === "changeBtn") selectScreen();
+  if (id === "skipBtn" && G.final) { G.final.needsInitials = false; renderFinal(); }
+  if (id === "clearScoresBtn") openDialog("CLEAR HIGH SCORES?", "This deletes every saved score on this browser. It can't be undone.", "CLEAR", () => { store.del(SCORE_KEY); selectScreen(); }, "Keep them", selectScreen);
+});
+$("overlay").addEventListener("submit", e => { e.preventDefault(); if (e.target.id === "initForm") submitInitials(); });
+$("overlay").addEventListener("input", e => { // initials: capitals A-Z only, max 3
+  if (e.target.id !== "initials") return;
+  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+  $("initErr").textContent = "";
+});
+
+/* ============================================================
+   Update + render
+   ============================================================ */
+function update(dt) {
+  G.t += dt;
+  const gl = G.golfer, b = G.ball;
+  gl.x += (b.x-gl.x) * Math.min(1, dt*5); gl.y += (b.y-gl.y) * Math.min(1, dt*5);
+  const settled = hyp(gl.x-b.x, gl.y-b.y) < 1.5;
+
+  switch (G.state) {
+    case "aim":
+    case "power":
+    case "accuracy": {
+      if (G.state === "aim") {
+        if (keys.ArrowLeft)  G.aim -= dt*.6;
+        if (keys.ArrowRight) G.aim += dt*.6;
+      }
+      const speed = 1 + .1*G.holeIdx;
+      if (G.state === "power") { G.pT += dt*.95*speed; const m = G.pT % 2; G.curPower = m <= 1 ? m : 2-m; }
+      if (G.state === "accuracy") { G.aT += dt*3.3*speed; G.curAcc = Math.sin(G.aT); }
+      if (G.pose !== "swing") setPose(settled ? "aim" : "idle");
+      break;
+    }
+    case "swing": G.swingT -= dt; if (G.swingT <= 0) launch(); break;
+    case "flight": updateFlight(dt); break;
+    case "result": G.wait -= dt; if (G.wait <= 0) { G.state = "aim"; prepAim(); setPose("idle"); updateHUD(); } break;
+    case "holeDone": {
+      G.summaryT -= dt;
+      if (G.summaryT <= 0 && G.pending) { const p = G.pending; G.pending = null; G.state = "summary"; holeSummary(p.name, p.s, p.d, p.good, p.pickedUp); }
+      break;
+    }
+  }
+  // meters
+  const ch = G.char && CHARS[G.char];
+  if (ch) {
+    $("aZone").style.left = (50 - ch.zone*50) + "%"; $("aZone").style.width = (ch.zone*100) + "%";
+    $("pFill").style.width = ((G.state === "power" ? G.curPower : G.state === "accuracy" || G.state === "swing" ? G.power : 0)*100) + "%";
+    $("aNeedle").style.left = (G.state === "accuracy" ? (G.curAcc+1)*50 : G.state === "swing" ? (G.acc+1)*50 : 50) + "%";
+    $("aNeedle").style.opacity = G.state === "accuracy" || G.state === "swing" ? 1 : .15;
+  }
+  // particles
+  for (const p of G.particles) { p.vy += p.g*dt; p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt; }
+  G.particles = G.particles.filter(p => p.life > 0);
+}
+
+function ell(e, fill, stroke) {
+  const p = w2s(e.x, e.y), S = G.view.S;
+  ctx.beginPath(); ctx.ellipse(p.x, p.y, e.rx*S, e.ry*S, 0, 0, Math.PI*2);
+  ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 3; ctx.stroke(); }
+}
+function strokePath(path, width, color) {
+  ctx.beginPath();
+  path.forEach((p,i) => { const s = w2s(p[0],p[1]); i ? ctx.lineTo(s.x,s.y) : ctx.moveTo(s.x,s.y); });
+  ctx.lineWidth = width*G.view.S; ctx.strokeStyle = color; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
+}
+function label(text, x, y) {
+  const p = w2s(x,y); ctx.font = "italic 11px 'Trebuchet MS',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = "#000a"; ctx.fillText(text, p.x+1, p.y+1); ctx.fillStyle = "#fff"; ctx.fillText(text, p.x, p.y);
+}
+function emoji(ch, x, y, size) {
+  ctx.font = `${size}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(ch, x, y); ctx.textBaseline = "alphabetic";
+}
+
+function drawCourse() {
+  const h = H(), S = G.view.S;
+  ctx.fillStyle = "#0f3a1a"; ctx.fillRect(0,0,W,H_);
+  // scenery bushes just outside the playable corridor
+  let seed = 7 + G.holeIdx*13; const rr = () => (seed = (seed*9301+49297) % 233280) / 233280;
+  for (let i = 0; i < h.path.length-1; i++) {
+    const a = h.path[i], b = h.path[i+1], len = hyp(b[0]-a[0], b[1]-a[1]), nx = -(b[1]-a[1])/len, ny = (b[0]-a[0])/len;
+    for (let d = -10; d < len+10; d += 9) for (const side of [-1,1]) {
+      const off = BOUND + 3 + rr()*10, x = a[0]+(b[0]-a[0])*d/len + nx*off*side, y = a[1]+(b[1]-a[1])*d/len + ny*off*side;
+      if (distPath(x,y,h.path) < BOUND+1) continue;
+      const p = w2s(x,y); emoji(rr() > .5 ? "🌲" : "🌳", p.x, p.y, 20+rr()*12);
+    }
+  }
+  strokePath(h.path, BOUND*2, "#2f7d32");          // rough
+  strokePath(h.path, h.fw+10, "#3f9a3d");
+  strokePath(h.path, h.fw, "#58b84a");             // fairway
+  // mowing stripes along the fairway
+  ctx.save(); ctx.globalAlpha = .12;
+  for (let i = 0; i < h.path.length-1; i++) {
+    const a = h.path[i], b = h.path[i+1], len = hyp(b[0]-a[0], b[1]-a[1]);
+    for (let d = 0; d < len; d += 24) {
+      const t0 = d/len, t1 = Math.min(1,(d+12)/len);
+      strokePath([[a[0]+(b[0]-a[0])*t0, a[1]+(b[1]-a[1])*t0],[a[0]+(b[0]-a[0])*t1, a[1]+(b[1]-a[1])*t1]], h.fw, "#000");
+    }
+  }
+  ctx.restore(); ctx.lineCap = "butt";
+  // tee box
+  const t = w2s(0,0); ctx.fillStyle = "#7dd36a"; ctx.fillRect(t.x-14, t.y-6, 28, 14);
+  // green
+  const g = w2s(h.green.x, h.green.y);
+  ctx.beginPath(); ctx.arc(g.x, g.y, (h.green.r+3)*S, 0, Math.PI*2); ctx.fillStyle = "#6bc95c"; ctx.fill();
+  ctx.beginPath(); ctx.arc(g.x, g.y, h.green.r*S, 0, Math.PI*2); ctx.fillStyle = "#8bea74"; ctx.fill();
+  // hazards
+  for (const s of h.sand) ell(s, "#e8d49a", "#c7ab63");
+  for (const w of h.water) {
+    ell(w, "#2f86d6", "#1b5f9e");
+    const p = w2s(w.x, w.y); ctx.strokeStyle = "#ffffff55"; ctx.lineWidth = 2;
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath(); const rx = w.rx*S*(.3+.2*k), off = Math.sin(G.t*2 + k)*3;
+      ctx.ellipse(p.x+off, p.y+(k-1)*w.ry*S*.35, rx, 2.5, 0, 0, Math.PI*2); ctx.stroke();
+    }
+  }
+  for (const s of h.sand) if (s.label) label(s.label, s.x, s.y - s.ry - 1.5);
+  for (const w of h.water) if (w.label) label(w.label, w.x, w.y);
+  // cup + flag
+  ctx.beginPath(); ctx.arc(g.x, g.y, Math.max(3, 1.6*S*.7), 0, Math.PI*2); ctx.fillStyle = "#111"; ctx.fill();
+  ctx.strokeStyle = "#eee"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.lineTo(g.x, g.y-42); ctx.stroke();
+  const wave = Math.sin(G.t*4)*2;
+  ctx.fillStyle = "#ff3b3b"; ctx.beginPath(); ctx.moveTo(g.x, g.y-42); ctx.lineTo(g.x+18+wave, g.y-37); ctx.lineTo(g.x, g.y-31); ctx.fill();
+  // trees
+  for (const tr of h.trees) { const p = w2s(tr.x, tr.y); emoji("🌲", p.x, p.y - tr.r*S*.4, tr.r*S*3.2); }
+}
+
+function drawGoose() {
+  const p = w2s(G.goose.x, G.goose.y), bob = Math.sin(G.t*3)*2;
+  ctx.fillStyle = "#0004"; ctx.beginPath(); ctx.ellipse(p.x, p.y+10, 11, 4, 0, 0, Math.PI*2); ctx.fill();
+  emoji("🪿", p.x, p.y + bob, 26);
+}
+
+function drawAim() {
+  if (!["aim","power","accuracy"].includes(G.state)) return;
+  const c = CLUBS[G.club], ch = CHARS[G.char], b = G.ball;
+  const range = c.max * (c.putter ? 1 : ch.power), S = G.view.S;
+  const p0 = w2s(b.x, b.y), p1 = w2s(b.x + Math.sin(G.aim)*range, b.y + Math.cos(G.aim)*range);
+  ctx.save(); ctx.setLineDash([6,6]); ctx.lineDashOffset = -G.t*20; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); ctx.restore();
+  ctx.beginPath(); ctx.arc(p1.x, p1.y, 8, 0, Math.PI*2); ctx.strokeStyle = "#ffd23f"; ctx.lineWidth = 3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(p1.x, p1.y, 2, 0, Math.PI*2); ctx.fillStyle = "#ffd23f"; ctx.fill();
+  // locked power marker
+  if (G.state !== "aim") {
+    const pw = G.state === "power" ? G.curPower : G.power;
+    const pm = w2s(b.x + Math.sin(G.aim)*range*pw, b.y + Math.cos(G.aim)*range*pw);
+    ctx.beginPath(); ctx.arc(pm.x, pm.y, 5, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill();
+  }
+}
+
+function drawBall() {
+  let bx = G.ball.x, by = G.ball.y, hgt = 0;
+  const f = G.flight;
+  if (f) {
+    const t = f.t; bx = f.sx + (f.ex-f.sx)*t; by = f.sy + (f.ey-f.sy)*t; hgt = Math.sin(Math.PI*t)*f.apex;
+  } else if (G.state === "holeDone" && !G.flight && hyp(G.ball.x-H().green.x, G.ball.y-H().green.y) < .1) return; // sunk
+  const p = w2s(bx, by);
+  ctx.fillStyle = "#0006"; ctx.beginPath(); ctx.ellipse(p.x, p.y+1, 4, 2, 0, 0, Math.PI*2); ctx.fill();
+  const scale = 1 + hgt/150;
+  ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(p.x, p.y - hgt, 3.4*scale, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+}
+
+function drawGolfer() {
+  const im = IMG[G.char][G.pose]; if (!im.complete || !im.naturalWidth) return;
+  const k = 70/309, p = w2s(G.golfer.x, G.golfer.y);
+  const w = im.naturalWidth*k, h = im.naturalHeight*k;
+  let x, y;
+  if (G.pose === "aim") { x = p.x - 10*k; y = p.y - 285*k; }          // club head sits on the ball
+  else { x = p.x + 138*k - w/2; y = p.y + 16*k - h; }                  // feet where they'd be in the aim pose
+  ctx.fillStyle = "#0004"; ctx.beginPath(); ctx.ellipse(p.x+138*k, p.y+16*k, 24, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(im, x, y, w, h);
+}
+
+function drawWind() {
+  const x = W-44, y = 40;
+  ctx.fillStyle = "#0008"; ctx.beginPath(); ctx.arc(x, y, 28, 0, Math.PI*2); ctx.fill();
+  if (!G.wind.mph) { ctx.fillStyle = "#fff"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center"; ctx.fillText("CALM", x, y+4); return; }
+  const a = G.wind.ang;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(a); // ang 0 = blowing up the screen, clockwise from there
+  ctx.strokeStyle = "#fff"; ctx.fillStyle = "#fff"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(0, -10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-7,-6); ctx.lineTo(0,-16); ctx.lineTo(7,-6); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = "#fff"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.fillText(G.wind.mph + " mph", x, y+42);
+}
+
+function render() {
+  if (!G.view) { ctx.fillStyle = "#0f3a1a"; ctx.fillRect(0,0,W,H_); return; }
+  drawCourse(); drawGoose(); drawAim(); drawGolfer(); drawBall(); drawWind();
+  for (const p of G.particles) {
+    ctx.globalAlpha = clamp(p.life/p.max*1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.s, p.s);
+  }
+  ctx.globalAlpha = 1;
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now-last)/1000); last = now;
+  if (G.char && !G.paused) update(dt);
+  else G.t += dt;
+  render();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- boot ---------- */
+$("portrait").src = IMG.ron.idle.src;
+$("bubble").innerHTML = "<b>Welcome</b>Pick a golfer to begin!";
+selectScreen();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
